@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../dashboards/student_dashboard.dart';
+
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
 
@@ -49,7 +51,14 @@ class LoginScreen extends StatelessWidget {
                 height: 55,
 
                 child: ElevatedButton.icon(
-                  onPressed: () {},
+                  onPressed: () {
+                    
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(
+                        builder: (context) => const StudentDashboard(),
+                      ),
+                    );
+                  },
 
                   icon: const Icon(Icons.login),
 
