@@ -23,34 +23,42 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final userCredential = await AuthService.instance.signInWithGoogle();
-      final user = userCredential?.user;
+  final userCredential = await AuthService.instance.signInWithGoogle();
+  final user = userCredential?.user;
 
-      if (user == null) {
-        _fail('Sign-in failed. Please try again.');
-        return;
-      }
+  if (user == null) {
+    _fail('Sign-in failed. Please try again.');
+    return;
+  }
 
-      if (!mounted) return;
-      setState(() => _isLoading = false);
+  // Allow only KIIT email
+  if (!user.email!.toLowerCase().endsWith("@kiit.ac.in")) {
+    await AuthService.instance.signOut();
+    _fail("Only KIIT Email is Allowed.");
+    return;
+  }
 
-      // Success -> go pick a role.
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (context) => const RoleSelectionScreen(),
-        ),
-      );
-    } on GoogleSignInException catch (e) {
-      if (e.code == GoogleSignInExceptionCode.canceled) {
-        setState(() => _isLoading = false);
-        return;
-      }
-      _fail('Google Sign-In error: ${e.description ?? e.code}');
-    } on FirebaseAuthException catch (e) {
-      _fail(e.message ?? 'Authentication error. Please try again.');
-    } catch (e) {
-      _fail('Something went wrong. Please try again.\n$e');
-    }
+  if (!mounted) return;
+  setState(() => _isLoading = false);
+
+  // Success -> go pick a role.
+  Navigator.of(context).pushReplacement(
+    MaterialPageRoute(
+      builder: (context) => const RoleSelectionScreen(),
+    ),
+  );
+
+} on GoogleSignInException catch (e) {
+  if (e.code == GoogleSignInExceptionCode.canceled) {
+    setState(() => _isLoading = false);
+    return;
+  }
+  _fail('Google Sign-In error: ${e.description ?? e.code}');
+} on FirebaseAuthException catch (e) {
+  _fail(e.message ?? 'Authentication error. Please try again.');
+} catch (e) {
+  _fail('Something went wrong. Please try again.\n$e');
+}
   }
 
   void _fail(String message) {
