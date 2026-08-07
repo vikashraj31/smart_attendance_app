@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../screens/add_class_screen.dart';
 
 class TeacherDashboard extends StatelessWidget {
   const TeacherDashboard({super.key});
@@ -13,9 +14,8 @@ class TeacherDashboard extends StatelessWidget {
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const SizedBox(height: 20),
-
             const Icon(
               Icons.groups_rounded,
               size: 90,
@@ -26,11 +26,11 @@ class TeacherDashboard extends StatelessWidget {
 
             const Text(
               "No Student List Uploaded",
+              textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
               ),
-              textAlign: TextAlign.center,
             ),
 
             const SizedBox(height: 12),
@@ -50,14 +50,19 @@ class TeacherDashboard extends StatelessWidget {
               width: double.infinity,
               height: 55,
               child: ElevatedButton.icon(
-                onPressed: () {
-                  // Excel upload functionality next step
-                },
                 icon: const Icon(Icons.upload_file),
                 label: const Text(
                   "Upload Student List",
                   style: TextStyle(fontSize: 18),
                 ),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AddClassScreen(),
+                    ),
+                  );
+                },
               ),
             ),
           ],
