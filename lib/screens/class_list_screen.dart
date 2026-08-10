@@ -1,5 +1,6 @@
-import 'generate_qr_screen.dart';
 import 'package:flutter/material.dart';
+import 'generate_qr_screen.dart';
+import 'manual_attendance_screen.dart';
 
 class ClassListScreen extends StatelessWidget {
   final String category;
@@ -219,9 +220,23 @@ class ClassListScreen extends StatelessWidget {
                     onTap: () {
                       Navigator.pop(context);
 
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Manual Attendance selected."),
+                      final students = List.generate(
+                        classData["students"],
+                        (index) => {
+                          "rollNo":
+                              "2405${(index + 1).toString().padLeft(3, '0')}",
+                          "name": "Student ${index + 1}",
+                        },
+                      );
+
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ManualAttendanceScreen(
+                            className: classData["className"],
+                            subject: classData["subject"],
+                            students: students,
+                          ),
                         ),
                       );
                     },
