@@ -2,9 +2,61 @@ import 'package:flutter/material.dart';
 
 import '../dashboards/student_dashboard.dart';
 import '../dashboards/teacher_dashboard.dart';
+import '../services/auth_service.dart';
 
-class RoleSelectionScreen extends StatelessWidget {
+class RoleSelectionScreen extends StatefulWidget {
   const RoleSelectionScreen({super.key});
+
+  @override
+  State<RoleSelectionScreen> createState() => _RoleSelectionScreenState();
+}
+
+class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
+  bool _isSaving = false;
+
+  Future<void> _selectRole(String role) async {
+    if (_isSaving) return;
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      await AuthService.instance.saveUserRole(role);
+
+      if (!mounted) return;
+
+      if (role == 'student') {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => const StudentDashboard(),
+          ),
+        );
+      } else {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => const TeacherDashboard(),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isSaving = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Could not save role. Please try again.',
+          ),
+        ),
+      );
+
+      debugPrint('Role save error: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +73,9 @@ class RoleSelectionScreen extends StatelessWidget {
                 size: 80,
                 color: Colors.blue,
               ),
+
               const SizedBox(height: 20),
+
               const Text(
                 "Who are you?",
                 style: TextStyle(
@@ -29,7 +83,9 @@ class RoleSelectionScreen extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                 ),
               ),
+
               const SizedBox(height: 8),
+
               const Text(
                 "Choose your role to continue",
                 style: TextStyle(
@@ -37,30 +93,27 @@ class RoleSelectionScreen extends StatelessWidget {
                   color: Colors.grey,
                 ),
               ),
+
               const SizedBox(height: 48),
+
               _RoleCard(
                 icon: Icons.school,
                 label: "I'm a Student",
-                onTap: () {
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(
-                      builder: (context) => const StudentDashboard(),
-                    ),
-                  );
-                },
+                onTap: () => _selectRole('student'),
               ),
+
               const SizedBox(height: 16),
+
               _RoleCard(
                 icon: Icons.person,
                 label: "I'm a Teacher",
-                onTap: () {
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(
-                      builder: (context) => const TeacherDashboard(),
-                    ),
-                  );
-                },
+                onTap: () => _selectRole('teacher'),
               ),
+
+              if (_isSaving) ...[
+                const SizedBox(height: 30),
+                const CircularProgressIndicator(),
+              ],
             ],
           ),
         ),
@@ -88,17 +141,28 @@ class _RoleCard extends StatelessWidget {
         elevation: 2,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: Colors.grey.shade200),
+          side: BorderSide(
+            color: Colors.grey.shade200,
+          ),
         ),
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 20),
+            padding: const EdgeInsets.symmetric(
+              vertical: 22,
+              horizontal: 20,
+            ),
             child: Row(
               children: [
-                Icon(icon, size: 32, color: Colors.blue),
+                Icon(
+                  icon,
+                  size: 32,
+                  color: Colors.blue,
+                ),
+
                 const SizedBox(width: 16),
+
                 Text(
                   label,
                   style: const TextStyle(
@@ -106,8 +170,14 @@ class _RoleCard extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
+
                 const Spacer(),
-                const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+
+                const Icon(
+                  Icons.arrow_forward_ios,
+                  size: 16,
+                  color: Colors.grey,
+                ),
               ],
             ),
           ),
