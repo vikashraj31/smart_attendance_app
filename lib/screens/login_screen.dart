@@ -1,6 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import '../dashboards/student_dashboard.dart';
+import '../dashboards/teacher_dashboard.dart';
 
 import '../services/auth_service.dart';
 import 'role_selection_screen.dart';
@@ -42,11 +44,31 @@ class _LoginScreenState extends State<LoginScreen> {
   setState(() => _isLoading = false);
 
   // Success -> go pick a role.
+  final role = await AuthService.instance.getUserRole();
+
+if (!mounted) return;
+
+setState(() => _isLoading = false);
+
+if (role == 'student') {
+  Navigator.of(context).pushReplacement(
+    MaterialPageRoute(
+      builder: (context) => const StudentDashboard(),
+    ),
+  );
+} else if (role == 'teacher') {
+  Navigator.of(context).pushReplacement(
+    MaterialPageRoute(
+      builder: (context) => const TeacherDashboard(),
+    ),
+  );
+} else {
   Navigator.of(context).pushReplacement(
     MaterialPageRoute(
       builder: (context) => const RoleSelectionScreen(),
     ),
   );
+}
 
 } on GoogleSignInException catch (e) {
   if (e.code == GoogleSignInExceptionCode.canceled) {
