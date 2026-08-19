@@ -1,9 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+
 import '../dashboards/student_dashboard.dart';
 import '../dashboards/teacher_dashboard.dart';
-
 import '../services/auth_service.dart';
 import 'role_selection_screen.dart';
 
@@ -25,66 +25,96 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-  final userCredential = await AuthService.instance.signInWithGoogle();
-  final user = userCredential?.user;
+      final userCredential =
+          await AuthService.instance.signInWithGoogle();
 
-  if (user == null) {
-    _fail('Sign-in failed. Please try again.');
-    return;
-  }
+      final user = userCredential?.user;
 
-  // Allow only KIIT email
-  if (!user.email!.toLowerCase().endsWith("@kiit.ac.in")) {
-    await AuthService.instance.signOut();
-    _fail("Only KIIT Email is Allowed.");
-    return;
-  }
+      if (user == null) {
+        _fail('Sign-in failed. Please try again.');
+        return;
+      }
 
-  if (!mounted) return;
-  setState(() => _isLoading = false);
+      final email = user.email?.toLowerCase() ?? '';
 
-  // Success -> go pick a role.
-  final role = await AuthService.instance.getUserRole();
+      // KIIT email = normal account.
+      // Other Gmail = temporary teacher testing account.
+      final isKiitEmail = email.endsWith('@kiit.ac.in');
 
-if (!mounted) return;
+      // Check whether this account already has a role.
+      final role = await AuthService.instance.getUserRole();
 
-setState(() => _isLoading = false);
+      if (!mounted) return;
 
-if (role == 'student') {
-  Navigator.of(context).pushReplacement(
-    MaterialPageRoute(
-      builder: (context) => const StudentDashboard(),
-    ),
-  );
-} else if (role == 'teacher') {
-  Navigator.of(context).pushReplacement(
-    MaterialPageRoute(
-      builder: (context) => const TeacherDashboard(),
-    ),
-  );
-} else {
-  Navigator.of(context).pushReplacement(
-    MaterialPageRoute(
-      builder: (context) => const RoleSelectionScreen(),
-    ),
-  );
-}
+      setState(() {
+        _isLoading = false;
+      });
 
-} on GoogleSignInException catch (e) {
-  if (e.code == GoogleSignInExceptionCode.canceled) {
-    setState(() => _isLoading = false);
-    return;
-  }
-  _fail('Google Sign-In error: ${e.description ?? e.code}');
-} on FirebaseAuthException catch (e) {
-  _fail(e.message ?? 'Authentication error. Please try again.');
-} catch (e) {
-  _fail('Something went wrong. Please try again.\n$e');
-}
+      // Existing student account.
+      if (role == 'student') {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => const StudentDashboard(),
+          ),
+        );
+        return;
+      }
+
+      // Existing teacher account.
+      if (role == 'teacher') {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => const TeacherDashboard(),
+          ),
+        );
+        return;
+      }
+
+      // New KIIT account.
+      if (isKiitEmail) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => const RoleSelectionScreen(),
+          ),
+        );
+        return;
+      }
+
+      // Temporary normal-Gmail teacher account.
+      await AuthService.instance.ensureTeacherForTesting();
+
+      if (!mounted) return;
+
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => const TeacherDashboard(),
+        ),
+      );
+    } on GoogleSignInException catch (e) {
+      if (e.code == GoogleSignInExceptionCode.canceled) {
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+
+      _fail(
+        'Google Sign-In error: ${e.description ?? e.code}',
+      );
+    } on FirebaseAuthException catch (e) {
+      _fail(
+        e.message ?? 'Authentication error. Please try again.',
+      );
+    } catch (e) {
+      _fail(
+        'Something went wrong. Please try again.\n$e',
+      );
+    }
   }
 
   void _fail(String message) {
     if (!mounted) return;
+
     setState(() {
       _isLoading = false;
       _errorMessage = message;
@@ -106,7 +136,9 @@ if (role == 'student') {
                 size: 90,
                 color: Colors.blue,
               ),
+
               const SizedBox(height: 20),
+
               const Text(
                 "Smart Attendance",
                 style: TextStyle(
@@ -114,7 +146,9 @@ if (role == 'student') {
                   fontWeight: FontWeight.bold,
                 ),
               ),
+
               const SizedBox(height: 10),
+
               const Text(
                 "Login to continue",
                 style: TextStyle(
@@ -122,20 +156,29 @@ if (role == 'student') {
                   color: Colors.grey,
                 ),
               ),
+
               const SizedBox(height: 40),
+
               if (_errorMessage != null) ...[
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: Colors.red.shade50,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.red.shade200),
+                    border: Border.all(
+                      color: Colors.red.shade200,
+                    ),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.error_outline,
-                          color: Colors.red.shade400, size: 20),
+                      Icon(
+                        Icons.error_outline,
+                        color: Colors.red.shade400,
+                        size: 20,
+                      ),
+
                       const SizedBox(width: 8),
+
                       Expanded(
                         child: Text(
                           _errorMessage!,
@@ -148,13 +191,17 @@ if (role == 'student') {
                     ],
                   ),
                 ),
+
                 const SizedBox(height: 20),
               ],
+
               SizedBox(
                 width: double.infinity,
                 height: 55,
                 child: _isLoading
-                    ? const Center(child: CircularProgressIndicator())
+                    ? const Center(
+                        child: CircularProgressIndicator(),
+                      )
                     : ElevatedButton.icon(
                         onPressed: _handleGoogleSignIn,
                         icon: const Icon(Icons.login),

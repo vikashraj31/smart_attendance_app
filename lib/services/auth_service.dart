@@ -125,4 +125,31 @@ class AuthService {
 
   return List<double>.from(data['embedding']);
 }
+Future<void> ensureTeacherForTesting() async {
+  final user = _auth.currentUser;
+
+  if (user == null) {
+    throw Exception('User is not logged in.');
+  }
+
+  final userRef = _firestore.collection('users').doc(user.uid);
+
+  final existingDoc = await userRef.get();
+
+  // If a role already exists, don't overwrite it.
+  if (existingDoc.exists &&
+      existingDoc.data()?['role'] != null) {
+    return;
+  }
+
+  await userRef.set(
+    {
+      'email': user.email,
+      'name': user.displayName ?? '',
+      'role': 'teacher',
+      'createdAt': FieldValue.serverTimestamp(),
+    },
+    SetOptions(merge: true),
+  );
+}
 }

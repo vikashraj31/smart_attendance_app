@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'qr_scanner_screen.dart';
+
 import '../screens/face_verification_screen.dart';
+import 'qr_scanner_screen.dart';
 
 class StudentDashboard extends StatelessWidget {
   const StudentDashboard({super.key});
@@ -8,40 +9,27 @@ class StudentDashboard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Smart Attendance"),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text("Smart Attendance"), centerTitle: true),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
             const SizedBox(height: 30),
 
-            const Icon(
-              Icons.school_rounded,
-              size: 90,
-              color: Colors.blue,
-            ),
+            const Icon(Icons.school_rounded, size: 90, color: Colors.blue),
 
             const SizedBox(height: 20),
 
             const Text(
               "Student Dashboard",
-              style: TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
             ),
 
             const SizedBox(height: 8),
 
             const Text(
               "Manage your attendance",
-              style: TextStyle(
-                fontSize: 15,
-                color: Colors.grey,
-              ),
+              style: TextStyle(fontSize: 15, color: Colors.grey),
             ),
 
             const SizedBox(height: 40),
@@ -56,8 +44,7 @@ class StudentDashboard extends StatelessWidget {
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (context) =>
-                            const FaceVerificationScreen(),
+                        builder: (context) => const FaceVerificationScreen(),
                       ),
                     );
                   },
@@ -65,18 +52,13 @@ class StudentDashboard extends StatelessWidget {
                     padding: EdgeInsets.all(20),
                     child: Row(
                       children: [
-                        Icon(
-                          Icons.face,
-                          size: 42,
-                          color: Colors.blue,
-                        ),
+                        Icon(Icons.face, size: 42, color: Colors.blue),
 
                         SizedBox(width: 18),
 
                         Expanded(
                           child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 "Face Verification",
@@ -90,9 +72,7 @@ class StudentDashboard extends StatelessWidget {
 
                               Text(
                                 "Set up your face for secure attendance",
-                                style: TextStyle(
-                                  color: Colors.grey,
-                                ),
+                                style: TextStyle(color: Colors.grey),
                               ),
                             ],
                           ),
@@ -117,23 +97,30 @@ class StudentDashboard extends StatelessWidget {
               width: double.infinity,
               height: 56,
               child: ElevatedButton.icon(
-                onPressed: () {
+                onPressed: () async {
+                  final sessionId = await Navigator.of(context).push<String>(
+                    MaterialPageRoute(
+                      builder: (context) => const QRScannerScreen(),
+                    ),
+                  );
+
+                  if (!context.mounted) return;
+
+                  if (sessionId == null || sessionId.isEmpty) {
+                    return;
+                  }
+
+                  debugPrint("QR SESSION ID RECEIVED: $sessionId");
+
                   Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (context) =>
-                          const QRScannerScreen(),
+                          FaceVerificationScreen(sessionId: sessionId),
                     ),
                   );
                 },
-                icon: const Icon(
-                  Icons.qr_code_scanner,
-                ),
-                label: const Text(
-                  "Scan QR",
-                  style: TextStyle(
-                    fontSize: 18,
-                  ),
-                ),
+                icon: const Icon(Icons.qr_code_scanner),
+                label: const Text("Scan QR", style: TextStyle(fontSize: 18)),
               ),
             ),
 
@@ -142,10 +129,7 @@ class StudentDashboard extends StatelessWidget {
             const Text(
               "You must complete face verification before marking attendance.",
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.grey,
-              ),
+              style: TextStyle(fontSize: 13, color: Colors.grey),
             ),
           ],
         ),
