@@ -22,11 +22,9 @@ class AuthService {
   }
 
   Future<UserCredential?> signInWithGoogle() async {
-    final GoogleSignInAccount account =
-        await _googleSignIn.authenticate();
+    final GoogleSignInAccount account = await _googleSignIn.authenticate();
 
-    final GoogleSignInAuthentication googleAuth =
-        account.authentication;
+    final GoogleSignInAuthentication googleAuth = account.authentication;
 
     final credential = GoogleAuthProvider.credential(
       idToken: googleAuth.idToken,
@@ -52,16 +50,31 @@ class AuthService {
       return null;
     }
 
-    final doc = await _firestore
-        .collection('users')
-        .doc(user.uid)
-        .get();
+    final doc = await _firestore.collection('users').doc(user.uid).get();
 
     if (!doc.exists) {
       return null;
     }
 
     return doc.data()?['role'] as String?;
+  }
+
+  Future<void> saveFaceEmbedding(List<double> embedding) async {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      throw Exception('User is not logged in.');
+    }
+
+    await FirebaseFirestore.instance.collection('face_data').doc(user.uid).set({
+      'embedding': embedding,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+
+    // Also mark the user's profile as face registered.
+    await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+      'faceRegistered': true,
+    }, SetOptions(merge: true));
   }
 
   // Save user's role to Firestore
@@ -72,17 +85,44 @@ class AuthService {
       throw Exception('User is not logged in.');
     }
 
-    await _firestore
-        .collection('users')
-        .doc(user.uid)
-        .set(
-      {
-        'email': user.email,
-        'name': user.displayName ?? '',
-        'role': role,
-        'createdAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
+    final userRef = _firestore.collection('users').doc(user.uid);
+
+    final existingDoc = await userRef.get();
+
+    // If role is already assigned, don't allow changing it.
+    if (existingDoc.exists && existingDoc.data()?['role'] != null) {
+      throw Exception('Role is already assigned.');
+    }
+
+    await userRef.set({
+      'email': user.email,
+      'name': user.displayName ?? '',
+      'role': role,
+      'createdAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
+  Future<List<double>?> getRegisteredFaceEmbedding() async {
+  final user = _auth.currentUser;
+
+  if (user == null) {
+    throw Exception('User is not logged in.');
+  }
+
+  final doc = await _firestore
+      .collection('face_data')
+      .doc(user.uid)
+      .get();
+
+  if (!doc.exists) {
+    return null;
+  }
+
+  final data = doc.data();
+
+  if (data == null || data['embedding'] == null) {
+    return null;
+  }
+
+  return List<double>.from(data['embedding']);
+}
 }
