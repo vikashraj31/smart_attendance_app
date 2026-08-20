@@ -45,6 +45,9 @@ dependencies:
   spreadsheet_decoder: ^2.3.0
   face_detection_tflite: ^6.8.0
   camera: ^0.12.0+2
+  geolocator: ^14.0.3
+  pdf: ^3.12.0
+  printing: ^5.14.3
 dev_dependencies:
   flutter_test:
     sdk: flutter

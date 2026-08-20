@@ -5,7 +5,10 @@ import 'manual_attendance_screen.dart';
 class ClassListScreen extends StatelessWidget {
   final String category;
 
-  const ClassListScreen({super.key, required this.category});
+  const ClassListScreen({
+    super.key,
+    required this.category,
+  });
 
   // Temporary testing data.
   // Baad me Firestore se actual classes aayengi.
@@ -78,27 +81,31 @@ class ClassListScreen extends StatelessWidget {
   }
 
   // ============================================================
-  // ATTENDANCE METHOD POPUP
+  // CLASS TYPE SELECTION
   // ============================================================
 
-  void _showAttendanceOptions(
+  void _showClassTypeOptions(
     BuildContext context,
     Map<String, dynamic> classData,
   ) {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(24),
+        ),
       ),
       builder: (context) {
         return Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
+          padding: const EdgeInsets.fromLTRB(
+            20,
+            20,
+            20,
+            30,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // ==================================================
-              // HANDLE
-              // ==================================================
               Container(
                 width: 45,
                 height: 5,
@@ -110,9 +117,6 @@ class ClassListScreen extends StatelessWidget {
 
               const SizedBox(height: 20),
 
-              // ==================================================
-              // CLASS NAME
-              // ==================================================
               Text(
                 classData["className"],
                 style: const TextStyle(
@@ -126,7 +130,10 @@ class ClassListScreen extends StatelessWidget {
               Text(
                 "${classData["students"]} Students • "
                 "${classData["subject"]}",
-                style: const TextStyle(color: Colors.grey, fontSize: 15),
+                style: const TextStyle(
+                  color: Colors.grey,
+                  fontSize: 15,
+                ),
               ),
 
               const SizedBox(height: 25),
@@ -134,16 +141,20 @@ class ClassListScreen extends StatelessWidget {
               const Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  "Select Attendance Method",
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                  "Select Class Type",
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
 
               const SizedBox(height: 15),
 
               // ==================================================
-              // GENERATE QR
+              // NORMAL CLASS
               // ==================================================
+
               SizedBox(
                 width: double.infinity,
                 child: Card(
@@ -160,6 +171,8 @@ class ClassListScreen extends StatelessWidget {
                             className: classData["className"],
                             students: classData["students"],
                             subject: classData["subject"],
+                            classType: "normal",
+                            maxDistance: 30,
                           ),
                         ),
                       );
@@ -168,13 +181,241 @@ class ClassListScreen extends StatelessWidget {
                       padding: EdgeInsets.all(18),
                       child: Row(
                         children: [
-                          Icon(Icons.qr_code_2, size: 32, color: Colors.blue),
+                          Icon(
+                            Icons.school,
+                            size: 32,
+                            color: Colors.blue,
+                          ),
 
                           SizedBox(width: 16),
 
                           Expanded(
                             child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "Normal Class",
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+
+                                SizedBox(height: 4),
+
+                                Text(
+                                  "Standard attendance distance",
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          Icon(
+                            Icons.arrow_forward_ios,
+                            size: 17,
+                            color: Colors.grey,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              // ==================================================
+              // AUDITORIUM
+              // ==================================================
+
+              SizedBox(
+                width: double.infinity,
+                child: Card(
+                  elevation: 2,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () {
+                      Navigator.pop(context);
+
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => GenerateQrScreen(
+                            className: classData["className"],
+                            students: classData["students"],
+                            subject: classData["subject"],
+                            classType: "auditorium",
+                            maxDistance: 60,
+                          ),
+                        ),
+                      );
+                    },
+                    child: const Padding(
+                      padding: EdgeInsets.all(18),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.account_balance,
+                            size: 32,
+                            color: Colors.orange,
+                          ),
+
+                          SizedBox(width: 16),
+
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "Auditorium",
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+
+                                SizedBox(height: 4),
+
+                                Text(
+                                  "Higher attendance distance",
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          Icon(
+                            Icons.arrow_forward_ios,
+                            size: 17,
+                            color: Colors.grey,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 10),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // ============================================================
+  // ATTENDANCE METHOD POPUP
+  // ============================================================
+
+  void _showAttendanceOptions(
+    BuildContext context,
+    Map<String, dynamic> classData,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(24),
+        ),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(
+            20,
+            20,
+            20,
+            30,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 45,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade400,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              Text(
+                classData["className"],
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              const SizedBox(height: 5),
+
+              Text(
+                "${classData["students"]} Students • "
+                "${classData["subject"]}",
+                style: const TextStyle(
+                  color: Colors.grey,
+                  fontSize: 15,
+                ),
+              ),
+
+              const SizedBox(height: 25),
+
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  "Select Attendance Method",
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 15),
+
+              // ==================================================
+              // GENERATE QR
+              // ==================================================
+
+              SizedBox(
+                width: double.infinity,
+                child: Card(
+                  elevation: 2,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () {
+                      Navigator.pop(context);
+
+                      _showClassTypeOptions(
+                        context,
+                        classData,
+                      );
+                    },
+                    child: const Padding(
+                      padding: EdgeInsets.all(18),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.qr_code_2,
+                            size: 32,
+                            color: Colors.blue,
+                          ),
+
+                          SizedBox(width: 16),
+
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
                               children: [
                                 Text(
                                   "Generate QR",
@@ -188,7 +429,9 @@ class ClassListScreen extends StatelessWidget {
 
                                 Text(
                                   "Take attendance using QR code",
-                                  style: TextStyle(color: Colors.grey),
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                  ),
                                 ),
                               ],
                             ),
@@ -211,6 +454,7 @@ class ClassListScreen extends StatelessWidget {
               // ==================================================
               // MANUAL ATTENDANCE
               // ==================================================
+
               SizedBox(
                 width: double.infinity,
                 child: Card(
@@ -232,7 +476,8 @@ class ClassListScreen extends StatelessWidget {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => ManualAttendanceScreen(
+                          builder: (context) =>
+                              ManualAttendanceScreen(
                             className: classData["className"],
                             subject: classData["subject"],
                             students: students,
@@ -244,13 +489,18 @@ class ClassListScreen extends StatelessWidget {
                       padding: EdgeInsets.all(18),
                       child: Row(
                         children: [
-                          Icon(Icons.edit_note, size: 32, color: Colors.green),
+                          Icon(
+                            Icons.edit_note,
+                            size: 32,
+                            color: Colors.green,
+                          ),
 
                           SizedBox(width: 16),
 
                           Expanded(
                             child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
                               children: [
                                 Text(
                                   "Manual Attendance",
@@ -264,7 +514,9 @@ class ClassListScreen extends StatelessWidget {
 
                                 Text(
                                   "Mark students manually",
-                                  style: TextStyle(color: Colors.grey),
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                  ),
                                 ),
                               ],
                             ),
@@ -295,7 +547,10 @@ class ClassListScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("$category Classes"), centerTitle: true),
+      appBar: AppBar(
+        title: Text("$category Classes"),
+        centerTitle: true,
+      ),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -303,14 +558,20 @@ class ClassListScreen extends StatelessWidget {
           children: [
             Text(
               "$category Classes",
-              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.bold,
+              ),
             ),
 
             const SizedBox(height: 8),
 
             const Text(
               "Select a class to take attendance.",
-              style: TextStyle(fontSize: 15, color: Colors.grey),
+              style: TextStyle(
+                fontSize: 15,
+                color: Colors.grey,
+              ),
             ),
 
             const SizedBox(height: 25),
@@ -328,7 +589,10 @@ class ClassListScreen extends StatelessWidget {
                     year: classData["year"],
                     section: classData["section"],
                     onTap: () {
-                      _showAttendanceOptions(context, classData);
+                      _showAttendanceOptions(
+                        context,
+                        classData,
+                      );
                     },
                   );
                 },
@@ -367,7 +631,9 @@ class _ClassCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,
@@ -416,7 +682,11 @@ class _ClassCard extends StatelessWidget {
 
               Row(
                 children: [
-                  const Icon(Icons.people, size: 20, color: Colors.grey),
+                  const Icon(
+                    Icons.people,
+                    size: 20,
+                    color: Colors.grey,
+                  ),
                   const SizedBox(width: 8),
                   Text("$students Students"),
                 ],
@@ -426,9 +696,15 @@ class _ClassCard extends StatelessWidget {
 
               Row(
                 children: [
-                  const Icon(Icons.menu_book, size: 20, color: Colors.grey),
+                  const Icon(
+                    Icons.menu_book,
+                    size: 20,
+                    color: Colors.grey,
+                  ),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(subject)),
+                  Expanded(
+                    child: Text(subject),
+                  ),
                 ],
               ),
 
@@ -436,7 +712,11 @@ class _ClassCard extends StatelessWidget {
 
               Row(
                 children: [
-                  const Icon(Icons.school, size: 20, color: Colors.grey),
+                  const Icon(
+                    Icons.school,
+                    size: 20,
+                    color: Colors.grey,
+                  ),
                   const SizedBox(width: 8),
                   Text("$year • Section $section"),
                 ],

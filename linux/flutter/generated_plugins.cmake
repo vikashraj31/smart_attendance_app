@@ -5,6 +5,7 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   face_detection_tflite
   file_selector_linux
+  printing
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
