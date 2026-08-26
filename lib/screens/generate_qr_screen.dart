@@ -1,5 +1,5 @@
 import 'dart:async';
-
+import 'attendance_report_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -14,8 +14,16 @@ class GenerateQrScreen extends StatefulWidget {
   // normal / auditorium
   final String classType;
 
-  // Distance limit in meters
+  // Maximum allowed distance in meters
   final int maxDistance;
+
+  // Class/roster information
+  final String department;
+  final String year;
+  final String section;
+
+  // Uploaded student-list document ID
+  final String rosterId;
 
   const GenerateQrScreen({
     super.key,
@@ -24,13 +32,19 @@ class GenerateQrScreen extends StatefulWidget {
     required this.subject,
     required this.classType,
     required this.maxDistance,
+    required this.department,
+    required this.year,
+    required this.section,
+    required this.rosterId,
   });
 
   @override
-  State<GenerateQrScreen> createState() => _GenerateQrScreenState();
+  State<GenerateQrScreen> createState() =>
+      _GenerateQrScreenState();
 }
 
-class _GenerateQrScreenState extends State<GenerateQrScreen> {
+class _GenerateQrScreenState
+    extends State<GenerateQrScreen> {
   String? _sessionId;
 
   Timer? _countdownTimer;
@@ -39,8 +53,13 @@ class _GenerateQrScreenState extends State<GenerateQrScreen> {
 
   bool _sessionExpired = false;
   bool _isCreatingSession = true;
+  bool _isEndingSession = false;
 
   String? _error;
+
+  // ============================================================
+  // INIT
+  // ============================================================
 
   @override
   void initState() {
@@ -66,7 +85,8 @@ class _GenerateQrScreenState extends State<GenerateQrScreen> {
         await Geolocator.checkPermission();
 
     if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
+      permission =
+          await Geolocator.requestPermission();
     }
 
     if (permission == LocationPermission.denied) {
@@ -75,7 +95,8 @@ class _GenerateQrScreenState extends State<GenerateQrScreen> {
       );
     }
 
-    if (permission == LocationPermission.deniedForever) {
+    if (permission ==
+        LocationPermission.deniedForever) {
       throw Exception(
         "Location permission is permanently denied. "
         "Please enable it from app settings.",
@@ -95,7 +116,8 @@ class _GenerateQrScreenState extends State<GenerateQrScreen> {
 
   Future<void> _createAttendanceSession() async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
+      final user =
+          FirebaseAuth.instance.currentUser;
 
       if (user == null) {
         throw Exception(
@@ -108,11 +130,13 @@ class _GenerateQrScreenState extends State<GenerateQrScreen> {
           _isCreatingSession = true;
           _error = null;
           _sessionExpired = false;
+          _isEndingSession = false;
         });
       }
 
-      // Get teacher's current location.
-      final position = await _getTeacherLocation();
+      // Get teacher location.
+      final position =
+          await _getTeacherLocation();
 
       debugPrint(
         "Teacher latitude: ${position.latitude}",
@@ -123,34 +147,42 @@ class _GenerateQrScreenState extends State<GenerateQrScreen> {
       );
 
       // Create unique Firestore session.
-      final sessionRef = FirebaseFirestore.instance
-          .collection('attendance_sessions')
-          .doc();
+      final sessionRef =
+          FirebaseFirestore.instance
+              .collection('attendance_sessions')
+              .doc();
 
       await sessionRef.set({
         'teacherId': user.uid,
 
         'className': widget.className,
-
         'subject': widget.subject,
-
         'studentCount': widget.students,
 
-        // normal / auditorium
         'classType': widget.classType,
-
-        // Maximum allowed distance in meters.
         'maxDistance': widget.maxDistance,
 
-        // Teacher's location.
-        'teacherLatitude': position.latitude,
+        'department': widget.department,
+        'year': widget.year,
+        'section': widget.section,
 
-        'teacherLongitude': position.longitude,
+        // IMPORTANT:
+        // This connects the QR session with
+        // the uploaded student roster.
+        'rosterId': widget.rosterId,
 
-        'createdAt': FieldValue.serverTimestamp(),
+        'teacherLatitude':
+            position.latitude,
+        'teacherLongitude':
+            position.longitude,
 
-        // Session starts active.
+        'createdAt':
+            FieldValue.serverTimestamp(),
+
         'active': true,
+
+        // Useful for report/finalization.
+        'endedManually': false,
       });
 
       if (!mounted) return;
@@ -160,12 +192,17 @@ class _GenerateQrScreenState extends State<GenerateQrScreen> {
         _isCreatingSession = false;
         _remainingSeconds = 180;
         _sessionExpired = false;
+        _isEndingSession = false;
       });
 
       _startCountdown();
 
       debugPrint(
         "Attendance session created: ${sessionRef.id}",
+      );
+
+      debugPrint(
+        "Roster ID: ${widget.rosterId}",
       );
 
       debugPrint(
@@ -217,40 +254,162 @@ class _GenerateQrScreenState extends State<GenerateQrScreen> {
           return;
         }
 
-        // ======================================================
-        // TIMER REACHED 00:00
-        // ======================================================
-
         timer.cancel();
+
+        final sessionId = _sessionId;
+
+        if (sessionId == null) {
+          return;
+        }
 
         setState(() {
           _remainingSeconds = 0;
           _sessionExpired = true;
         });
 
-        // Disable Firebase attendance session.
-        if (_sessionId != null) {
-          try {
-            await FirebaseFirestore.instance
-                .collection('attendance_sessions')
-                .doc(_sessionId!)
-                .update({
-              'active': false,
-              'expiredAt':
-                  FieldValue.serverTimestamp(),
-            });
-
-            debugPrint(
-              "Attendance session expired: $_sessionId",
-            );
-          } catch (e) {
-            debugPrint(
-              "Could not expire attendance session: $e",
-            );
-          }
-        }
+        await _finishSession(
+          sessionId,
+          endedManually: false,
+        );
       },
     );
+  }
+
+  // ============================================================
+  // END ATTENDANCE MANUALLY
+  // ============================================================
+
+  Future<void> _endAttendanceManually() async {
+    final sessionId = _sessionId;
+
+    if (sessionId == null ||
+        _isEndingSession ||
+        _sessionExpired) {
+      return;
+    }
+
+    final shouldEnd =
+        await showDialog<bool>(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              title: const Text(
+                "End Attendance?",
+              ),
+              content: const Text(
+                "Students will no longer be able to "
+                "mark attendance using this QR code.\n\n"
+                "The attendance report will open next.",
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () =>
+                      Navigator.pop(
+                    context,
+                    false,
+                  ),
+                  child:
+                      const Text("Cancel"),
+                ),
+                ElevatedButton(
+                  onPressed: () =>
+                      Navigator.pop(
+                    context,
+                    true,
+                  ),
+                  child:
+                      const Text("End Attendance"),
+                ),
+              ],
+            );
+          },
+        );
+
+    if (shouldEnd != true) {
+      return;
+    }
+
+    setState(() {
+      _isEndingSession = true;
+    });
+
+    _countdownTimer?.cancel();
+
+    await _finishSession(
+      sessionId,
+      endedManually: true,
+    );
+  }
+
+  // ============================================================
+  // FINISH SESSION + OPEN REPORT
+  // ============================================================
+
+  Future<void> _finishSession(
+    String sessionId, {
+    required bool endedManually,
+  }) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('attendance_sessions')
+          .doc(sessionId)
+          .update({
+        'active': false,
+        'endedManually': endedManually,
+        'endedAt':
+            FieldValue.serverTimestamp(),
+      });
+
+      debugPrint(
+        "Attendance session ended: $sessionId",
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _sessionExpired = true;
+        _isEndingSession = false;
+      });
+
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) =>
+              AttendanceReportScreen(
+            sessionId: sessionId,
+            department:
+                widget.department,
+            year: widget.year,
+            section:
+                widget.section,
+            className:
+                widget.className,
+            subject:
+                widget.subject,
+            maxDistance:
+                widget.maxDistance,
+          ),
+        ),
+      );
+    } catch (e) {
+      debugPrint(
+        "Could not end attendance session: $e",
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _isEndingSession = false;
+      });
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        SnackBar(
+          content: Text(
+            "Could not end attendance: $e",
+          ),
+        ),
+      );
+    }
   }
 
   // ============================================================
@@ -266,6 +425,7 @@ class _GenerateQrScreenState extends State<GenerateQrScreen> {
       _error = null;
       _remainingSeconds = 180;
       _sessionExpired = false;
+      _isEndingSession = false;
     });
 
     await _createAttendanceSession();
@@ -276,8 +436,11 @@ class _GenerateQrScreenState extends State<GenerateQrScreen> {
   // ============================================================
 
   String get _formattedTime {
-    final minutes = _remainingSeconds ~/ 60;
-    final seconds = _remainingSeconds % 60;
+    final minutes =
+        _remainingSeconds ~/ 60;
+
+    final seconds =
+        _remainingSeconds % 60;
 
     return '${minutes.toString().padLeft(2, '0')}:'
         '${seconds.toString().padLeft(2, '0')}';
@@ -301,11 +464,13 @@ class _GenerateQrScreenState extends State<GenerateQrScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Generate QR"),
+        title:
+            const Text("Generate QR"),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding:
+            const EdgeInsets.all(20),
         child: Column(
           children: [
             const SizedBox(height: 10),
@@ -318,7 +483,8 @@ class _GenerateQrScreenState extends State<GenerateQrScreen> {
               widget.className,
               style: const TextStyle(
                 fontSize: 28,
-                fontWeight: FontWeight.bold,
+                fontWeight:
+                    FontWeight.bold,
               ),
             ),
 
@@ -343,25 +509,44 @@ class _GenerateQrScreenState extends State<GenerateQrScreen> {
             // ==================================================
 
             Container(
-              padding: const EdgeInsets.symmetric(
+              padding:
+                  const EdgeInsets.symmetric(
                 horizontal: 14,
                 vertical: 8,
               ),
-              decoration: BoxDecoration(
-                color: widget.classType == "auditorium"
-                    ? Colors.orange.withValues(alpha: 0.12)
-                    : Colors.blue.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(20),
+              decoration:
+                  BoxDecoration(
+                color:
+                    widget.classType ==
+                            "auditorium"
+                        ? Colors.orange
+                            .withValues(
+                            alpha: 0.12,
+                          )
+                        : Colors.blue
+                            .withValues(
+                            alpha: 0.12,
+                          ),
+                borderRadius:
+                    BorderRadius.circular(
+                  20,
+                ),
               ),
               child: Text(
-                widget.classType == "auditorium"
+                widget.classType ==
+                        "auditorium"
                     ? "Auditorium • ${widget.maxDistance} m"
                     : "Normal Class • ${widget.maxDistance} m",
                 style: TextStyle(
-                  color: widget.classType == "auditorium"
-                      ? Colors.orange.shade800
-                      : Colors.blue.shade800,
-                  fontWeight: FontWeight.w600,
+                  color:
+                      widget.classType ==
+                              "auditorium"
+                          ? Colors.orange
+                              .shade800
+                          : Colors.blue
+                              .shade800,
+                  fontWeight:
+                      FontWeight.w600,
                 ),
               ),
             ),
@@ -374,25 +559,38 @@ class _GenerateQrScreenState extends State<GenerateQrScreen> {
 
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(18),
+                padding:
+                    const EdgeInsets.all(
+                  18,
+                ),
                 child: Row(
                   mainAxisAlignment:
-                      MainAxisAlignment.spaceAround,
+                      MainAxisAlignment
+                          .spaceAround,
                   children: [
                     _InfoItem(
-                      icon: Icons.people,
-                      value: "${widget.students}",
-                      label: "Students",
+                      icon:
+                          Icons.people,
+                      value:
+                          "${widget.students}",
+                      label:
+                          "Students",
                     ),
                     _InfoItem(
-                      icon: Icons.menu_book,
-                      value: widget.subject,
-                      label: "Subject",
+                      icon:
+                          Icons.menu_book,
+                      value:
+                          widget.subject,
+                      label:
+                          "Subject",
                     ),
                     _InfoItem(
-                      icon: Icons.location_on,
-                      value: "${widget.maxDistance} m",
-                      label: "Distance",
+                      icon:
+                          Icons.location_on,
+                      value:
+                          "${widget.maxDistance} m",
+                      label:
+                          "Distance",
                     ),
                   ],
                 ),
@@ -409,9 +607,11 @@ class _GenerateQrScreenState extends State<GenerateQrScreen> {
               "Scan QR to Mark Attendance",
               style: TextStyle(
                 fontSize: 20,
-                fontWeight: FontWeight.bold,
+                fontWeight:
+                    FontWeight.bold,
               ),
-              textAlign: TextAlign.center,
+              textAlign:
+                  TextAlign.center,
             ),
 
             const SizedBox(height: 8),
@@ -419,7 +619,8 @@ class _GenerateQrScreenState extends State<GenerateQrScreen> {
             const Text(
               "Students can scan this QR code "
               "to mark their attendance.",
-              textAlign: TextAlign.center,
+              textAlign:
+                  TextAlign.center,
               style: TextStyle(
                 color: Colors.grey,
                 fontSize: 15,
@@ -434,13 +635,12 @@ class _GenerateQrScreenState extends State<GenerateQrScreen> {
 
             if (_isCreatingSession)
               const Padding(
-                padding: EdgeInsets.all(60),
+                padding:
+                    EdgeInsets.all(60),
                 child: Column(
                   children: [
                     CircularProgressIndicator(),
-
                     SizedBox(height: 20),
-
                     Text(
                       "Getting teacher location...",
                       style: TextStyle(
@@ -464,22 +664,30 @@ class _GenerateQrScreenState extends State<GenerateQrScreen> {
                     size: 60,
                   ),
 
-                  const SizedBox(height: 15),
+                  const SizedBox(
+                    height: 15,
+                  ),
 
                   Text(
                     _error!,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    textAlign:
+                        TextAlign.center,
+                    style:
+                        const TextStyle(
                       color: Colors.red,
                       fontSize: 16,
                     ),
                   ),
 
-                  const SizedBox(height: 20),
+                  const SizedBox(
+                    height: 20,
+                  ),
 
                   ElevatedButton(
-                    onPressed: _generateNewQr,
-                    child: const Text(
+                    onPressed:
+                        _generateNewQr,
+                    child:
+                        const Text(
                       "Try Again",
                     ),
                   ),
@@ -492,15 +700,23 @@ class _GenerateQrScreenState extends State<GenerateQrScreen> {
 
             else if (_sessionId != null)
               Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
+                padding:
+                    const EdgeInsets.all(
+                  20,
+                ),
+                decoration:
+                    BoxDecoration(
                   color: Colors.white,
                   borderRadius:
-                      BorderRadius.circular(20),
+                      BorderRadius.circular(
+                    20,
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black
-                          .withValues(alpha: 0.10),
+                          .withValues(
+                        alpha: 0.10,
+                      ),
                       blurRadius: 15,
                       spreadRadius: 2,
                     ),
@@ -508,9 +724,11 @@ class _GenerateQrScreenState extends State<GenerateQrScreen> {
                 ),
                 child: QrImageView(
                   data: _sessionId!,
-                  version: QrVersions.auto,
+                  version:
+                      QrVersions.auto,
                   size: 260,
-                  backgroundColor: Colors.white,
+                  backgroundColor:
+                      Colors.white,
                 ),
               ),
 
@@ -522,45 +740,64 @@ class _GenerateQrScreenState extends State<GenerateQrScreen> {
 
             if (_sessionId != null)
               Container(
-                width: double.infinity,
+                width:
+                    double.infinity,
                 padding:
-                    const EdgeInsets.symmetric(
+                    const EdgeInsets
+                        .symmetric(
                   horizontal: 20,
                   vertical: 16,
                 ),
-                decoration: BoxDecoration(
+                decoration:
+                    BoxDecoration(
                   color: _sessionExpired
                       ? Colors.red
-                          .withValues(alpha: 0.10)
+                          .withValues(
+                          alpha: 0.10,
+                        )
                       : Colors.blue
-                          .withValues(alpha: 0.10),
+                          .withValues(
+                          alpha: 0.10,
+                        ),
                   borderRadius:
-                      BorderRadius.circular(14),
+                      BorderRadius.circular(
+                    14,
+                  ),
                   border: Border.all(
-                    color: _sessionExpired
-                        ? Colors.red
-                            .withValues(alpha: 0.30)
-                        : Colors.blue
-                            .withValues(alpha: 0.30),
+                    color:
+                        _sessionExpired
+                            ? Colors.red
+                                .withValues(
+                                alpha:
+                                    0.30,
+                              )
+                            : Colors.blue
+                                .withValues(
+                                alpha:
+                                    0.30,
+                              ),
                   ),
                 ),
                 child: Column(
                   children: [
                     Text(
                       _sessionExpired
-                          ? "Attendance Session Expired"
+                          ? "Attendance Session Ended"
                           : "Time Remaining",
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight:
                             FontWeight.w600,
-                        color: _sessionExpired
-                            ? Colors.red
-                            : Colors.blue,
+                        color:
+                            _sessionExpired
+                                ? Colors.red
+                                : Colors.blue,
                       ),
                     ),
 
-                    const SizedBox(height: 6),
+                    const SizedBox(
+                      height: 6,
+                    ),
 
                     Text(
                       _formattedTime,
@@ -568,31 +805,88 @@ class _GenerateQrScreenState extends State<GenerateQrScreen> {
                         fontSize: 34,
                         fontWeight:
                             FontWeight.bold,
-                        color: _sessionExpired
-                            ? Colors.red
-                            : Colors.blue,
+                        color:
+                            _sessionExpired
+                                ? Colors.red
+                                : Colors.blue,
                       ),
                     ),
 
-                    const SizedBox(height: 4),
+                    const SizedBox(
+                      height: 4,
+                    ),
 
                     Text(
                       _sessionExpired
-                          ? "Students can no longer "
-                              "mark attendance."
-                          : "Students must complete "
-                              "attendance within this time.",
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
+                          ? "Students can no longer mark attendance."
+                          : "Students must complete attendance within this time.",
+                      textAlign:
+                          TextAlign.center,
+                      style:
+                          const TextStyle(
                         fontSize: 13,
-                        color: Colors.grey,
+                        color:
+                            Colors.grey,
                       ),
                     ),
                   ],
                 ),
               ),
 
-            const SizedBox(height: 25),
+            const SizedBox(height: 20),
+
+            // ==================================================
+            // END ATTENDANCE BUTTON
+            // ==================================================
+
+            if (_sessionId != null &&
+                !_sessionExpired)
+              SizedBox(
+                width:
+                    double.infinity,
+                height: 55,
+                child:
+                    ElevatedButton.icon(
+                  onPressed:
+                      _isEndingSession
+                          ? null
+                          : _endAttendanceManually,
+                  style:
+                      ElevatedButton.styleFrom(
+                    backgroundColor:
+                        Colors.red,
+                    foregroundColor:
+                        Colors.white,
+                  ),
+                  icon: _isEndingSession
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child:
+                              CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color:
+                                Colors.white,
+                          ),
+                        )
+                      : const Icon(
+                          Icons.stop_circle,
+                        ),
+                  label: Text(
+                    _isEndingSession
+                        ? "Ending Attendance..."
+                        : "End Attendance",
+                    style:
+                        const TextStyle(
+                      fontSize: 18,
+                      fontWeight:
+                          FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+
+            const SizedBox(height: 20),
 
             // ==================================================
             // SESSION STATUS
@@ -600,23 +894,43 @@ class _GenerateQrScreenState extends State<GenerateQrScreen> {
 
             if (_sessionId != null)
               Container(
-                width: double.infinity,
+                width:
+                    double.infinity,
                 padding:
-                    const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: _sessionExpired
-                      ? Colors.red
-                          .withValues(alpha: 0.10)
-                      : Colors.green
-                          .withValues(alpha: 0.10),
+                    const EdgeInsets.all(
+                  16,
+                ),
+                decoration:
+                    BoxDecoration(
+                  color:
+                      _sessionExpired
+                          ? Colors.red
+                              .withValues(
+                              alpha:
+                                  0.10,
+                            )
+                          : Colors.green
+                              .withValues(
+                              alpha:
+                                  0.10,
+                            ),
                   borderRadius:
-                      BorderRadius.circular(12),
+                      BorderRadius.circular(
+                    12,
+                  ),
                   border: Border.all(
-                    color: _sessionExpired
-                        ? Colors.red
-                            .withValues(alpha: 0.30)
-                        : Colors.green
-                            .withValues(alpha: 0.30),
+                    color:
+                        _sessionExpired
+                            ? Colors.red
+                                .withValues(
+                                alpha:
+                                    0.30,
+                              )
+                            : Colors.green
+                                .withValues(
+                                alpha:
+                                    0.30,
+                              ),
                   ),
                 ),
                 child: Row(
@@ -624,13 +938,17 @@ class _GenerateQrScreenState extends State<GenerateQrScreen> {
                     Icon(
                       _sessionExpired
                           ? Icons.cancel
-                          : Icons.check_circle,
-                      color: _sessionExpired
-                          ? Colors.red
-                          : Colors.green,
+                          : Icons
+                              .check_circle,
+                      color:
+                          _sessionExpired
+                              ? Colors.red
+                              : Colors.green,
                     ),
 
-                    const SizedBox(width: 10),
+                    const SizedBox(
+                      width: 10,
+                    ),
 
                     Expanded(
                       child: Text(
@@ -638,9 +956,10 @@ class _GenerateQrScreenState extends State<GenerateQrScreen> {
                             ? "Attendance session has ended."
                             : "Attendance session is active.",
                         style: TextStyle(
-                          color: _sessionExpired
-                              ? Colors.red
-                              : Colors.green,
+                          color:
+                              _sessionExpired
+                                  ? Colors.red
+                                  : Colors.green,
                           fontWeight:
                               FontWeight.bold,
                         ),
@@ -656,14 +975,21 @@ class _GenerateQrScreenState extends State<GenerateQrScreen> {
             // GENERATE NEW QR
             // ==================================================
 
-            if (_sessionId != null)
+            if (_sessionId != null &&
+                _sessionExpired)
               SizedBox(
-                width: double.infinity,
+                width:
+                    double.infinity,
                 height: 55,
-                child: ElevatedButton.icon(
-                  onPressed: _generateNewQr,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text(
+                child:
+                    ElevatedButton.icon(
+                  onPressed:
+                      _generateNewQr,
+                  icon: const Icon(
+                    Icons.refresh,
+                  ),
+                  label:
+                      const Text(
                     "Generate New QR",
                     style: TextStyle(
                       fontSize: 18,
@@ -684,7 +1010,8 @@ class _GenerateQrScreenState extends State<GenerateQrScreen> {
 // INFORMATION ITEM
 // ============================================================
 
-class _InfoItem extends StatelessWidget {
+class _InfoItem
+    extends StatelessWidget {
   final IconData icon;
   final String value;
   final String label;
@@ -696,7 +1023,9 @@ class _InfoItem extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     return Column(
       children: [
         Icon(
@@ -709,8 +1038,10 @@ class _InfoItem extends StatelessWidget {
 
         Text(
           value,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
+          style:
+              const TextStyle(
+            fontWeight:
+                FontWeight.bold,
             fontSize: 16,
           ),
         ),
@@ -719,7 +1050,8 @@ class _InfoItem extends StatelessWidget {
 
         Text(
           label,
-          style: const TextStyle(
+          style:
+              const TextStyle(
             color: Colors.grey,
             fontSize: 13,
           ),
