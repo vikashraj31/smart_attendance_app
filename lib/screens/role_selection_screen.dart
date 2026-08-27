@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../dashboards/mentor_dashboard.dart';
 import '../dashboards/student_dashboard.dart';
 import '../dashboards/teacher_dashboard.dart';
 import '../services/auth_service.dart';
@@ -42,20 +41,6 @@ class _RoleSelectionScreenState
           MaterialPageRoute(
             builder: (context) =>
                 const StudentDashboard(),
-          ),
-        );
-        return;
-      }
-
-      // ========================================================
-      // MENTOR
-      // ========================================================
-
-      if (role == 'mentor') {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) =>
-                const MentorDashboard(),
           ),
         );
         return;
@@ -105,8 +90,7 @@ class _RoleSelectionScreenState
       backgroundColor: Colors.white,
       body: SafeArea(
         child: Padding(
-          padding:
-              const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisAlignment:
                 MainAxisAlignment.center,
@@ -117,22 +101,17 @@ class _RoleSelectionScreenState
                 color: Colors.blue,
               ),
 
-              const SizedBox(
-                height: 20,
-              ),
+              const SizedBox(height: 20),
 
               const Text(
                 'Who are you?',
                 style: TextStyle(
                   fontSize: 26,
-                  fontWeight:
-                      FontWeight.bold,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
 
-              const SizedBox(
-                height: 8,
-              ),
+              const SizedBox(height: 8),
 
               const Text(
                 'Choose your role to continue',
@@ -142,9 +121,7 @@ class _RoleSelectionScreenState
                 ),
               ),
 
-              const SizedBox(
-                height: 40,
-              ),
+              const SizedBox(height: 40),
 
               // ==================================================
               // STUDENT
@@ -153,13 +130,12 @@ class _RoleSelectionScreenState
               _RoleCard(
                 icon: Icons.school,
                 label: "I'm a Student",
-                onTap: () =>
-                    _selectRole('student'),
+                onTap: _isSaving
+                    ? null
+                    : () => _selectRole('student'),
               ),
 
-              const SizedBox(
-                height: 14,
-              ),
+              const SizedBox(height: 14),
 
               // ==================================================
               // TEACHER
@@ -168,30 +144,13 @@ class _RoleSelectionScreenState
               _RoleCard(
                 icon: Icons.person,
                 label: "I'm a Teacher",
-                onTap: () =>
-                    _selectRole('teacher'),
-              ),
-
-              const SizedBox(
-                height: 14,
-              ),
-
-              // ==================================================
-              // MENTOR
-              // ==================================================
-
-              _RoleCard(
-                icon: Icons.supervisor_account,
-                label: "I'm a Mentor",
-                onTap: () =>
-                    _selectRole('mentor'),
+                onTap: _isSaving
+                    ? null
+                    : () => _selectRole('teacher'),
               ),
 
               if (_isSaving) ...[
-                const SizedBox(
-                  height: 30,
-                ),
-
+                const SizedBox(height: 30),
                 const CircularProgressIndicator(),
               ],
             ],
@@ -206,8 +165,7 @@ class _RoleSelectionScreenState
 // ROLE CARD
 // ================================================================
 
-class _RoleCard
-    extends StatelessWidget {
+class _RoleCard extends StatelessWidget {
   const _RoleCard({
     required this.icon,
     required this.label,
@@ -216,33 +174,25 @@ class _RoleCard
 
   final IconData icon;
   final String label;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
       child: Card(
         elevation: 2,
-        shape:
-            RoundedRectangleBorder(
-          borderRadius:
-              BorderRadius.circular(14),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
           side: BorderSide(
             color: Colors.grey.shade200,
           ),
         ),
         child: InkWell(
-          borderRadius:
-              BorderRadius.circular(14),
-          onTap: _isDisabled(context)
-              ? null
-              : onTap,
+          borderRadius: BorderRadius.circular(14),
+          onTap: onTap,
           child: Padding(
-            padding:
-                const EdgeInsets.symmetric(
+            padding: const EdgeInsets.symmetric(
               vertical: 20,
               horizontal: 20,
             ),
@@ -254,17 +204,13 @@ class _RoleCard
                   color: Colors.blue,
                 ),
 
-                const SizedBox(
-                  width: 16,
-                ),
+                const SizedBox(width: 16),
 
                 Text(
                   label,
-                  style:
-                      const TextStyle(
+                  style: const TextStyle(
                     fontSize: 18,
-                    fontWeight:
-                        FontWeight.w600,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
 
@@ -281,11 +227,5 @@ class _RoleCard
         ),
       ),
     );
-  }
-
-  bool _isDisabled(
-    BuildContext context,
-  ) {
-    return false;
   }
 }

@@ -3,25 +3,19 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
-import 'face_matching_service.dart';
-
 class AuthService {
   AuthService._();
 
-  static final AuthService instance =
-      AuthService._();
+  static final AuthService instance = AuthService._();
 
-  final FirebaseAuth _auth =
-      FirebaseAuth.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  final GoogleSignIn _googleSignIn =
-      GoogleSignIn.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
 
   final FirebaseFirestore _firestore =
       FirebaseFirestore.instance;
 
-  final DeviceInfoPlugin _deviceInfo =
-      DeviceInfoPlugin();
+  final DeviceInfoPlugin _deviceInfo = DeviceInfoPlugin();
 
   FirebaseAuth get auth => _auth;
 
@@ -47,8 +41,7 @@ class AuthService {
     final GoogleSignInAuthentication googleAuth =
         account.authentication;
 
-    final credential =
-        GoogleAuthProvider.credential(
+    final credential = GoogleAuthProvider.credential(
       idToken: googleAuth.idToken,
     );
 
@@ -70,8 +63,7 @@ class AuthService {
   // CURRENT USER
   // ============================================================
 
-  User? get currentUser =>
-      _auth.currentUser;
+  User? get currentUser => _auth.currentUser;
 
   Stream<User?> get authStateChanges =>
       _auth.authStateChanges();
@@ -114,20 +106,17 @@ class AuthService {
 
     final email = user.email;
 
-    if (email == null ||
-        email.trim().isEmpty) {
+    if (email == null || email.trim().isEmpty) {
       return null;
     }
 
-    final parts =
-        email.trim().split('@');
+    final parts = email.trim().split('@');
 
     if (parts.length != 2) {
       return null;
     }
 
-    final rollNo =
-        parts.first.trim();
+    final rollNo = parts.first.trim();
 
     if (rollNo.isEmpty) {
       return null;
@@ -140,9 +129,7 @@ class AuthService {
   // SAVE USER ROLE
   // ============================================================
 
-  Future<void> saveUserRole(
-    String role,
-  ) async {
+  Future<void> saveUserRole(String role) async {
     final user = _auth.currentUser;
 
     if (user == null) {
@@ -151,47 +138,46 @@ class AuthService {
       );
     }
 
-    final userRef =
-        _firestore
-            .collection('users')
-            .doc(user.uid);
+    // Only these two roles are allowed.
+    if (role != 'student' && role != 'teacher') {
+      throw Exception(
+        'Invalid role.',
+      );
+    }
 
-    final existingDoc =
-        await userRef.get();
+    final userRef = _firestore
+        .collection('users')
+        .doc(user.uid);
+
+    final existingDoc = await userRef.get();
 
     if (existingDoc.exists &&
-        existingDoc.data()?['role'] !=
-            null) {
+        existingDoc.data()?['role'] != null) {
       throw Exception(
         'Role is already assigned.',
       );
     }
 
-    final Map<String, dynamic>
-        userData = {
+    final Map<String, dynamic> userData = {
       'email': user.email,
-      'name':
-          user.displayName ?? '',
-      'fullName':
-          user.displayName ?? '',
+      'name': user.displayName ?? '',
+      'fullName': user.displayName ?? '',
       'role': role,
       'createdAt':
           FieldValue.serverTimestamp(),
     };
 
+    // Student gets roll number from KIIT email.
     if (role == 'student') {
-      final rollNo =
-          await getStudentRollNo();
+      final rollNo = await getStudentRollNo();
 
-      if (rollNo == null ||
-          rollNo.isEmpty) {
+      if (rollNo == null || rollNo.isEmpty) {
         throw Exception(
           'Could not determine student roll number.',
         );
       }
 
-      userData['rollNo'] =
-          rollNo;
+      userData['rollNo'] = rollNo;
     }
 
     await userRef.set(
@@ -208,8 +194,7 @@ class AuthService {
     final androidInfo =
         await _deviceInfo.androidInfo;
 
-    final deviceId =
-        androidInfo.id.trim();
+    final deviceId = androidInfo.id.trim();
 
     if (deviceId.isEmpty) {
       throw Exception(
@@ -252,8 +237,7 @@ class AuthService {
   // CHECK CURRENT DEVICE
   // ============================================================
 
-  Future<bool> isCurrentDeviceRegistered()
-      async {
+  Future<bool> isCurrentDeviceRegistered() async {
     final user = _auth.currentUser;
 
     if (user == null) {
@@ -262,18 +246,16 @@ class AuthService {
       );
     }
 
-    final faceDoc =
-        await _firestore
-            .collection('face_data')
-            .doc(user.uid)
-            .get();
+    final faceDoc = await _firestore
+        .collection('face_data')
+        .doc(user.uid)
+        .get();
 
     if (!faceDoc.exists) {
       return false;
     }
 
-    final data =
-        faceDoc.data();
+    final data = faceDoc.data();
 
     if (data == null) {
       return false;
@@ -290,90 +272,7 @@ class AuthService {
     final currentDevice =
         await getDeviceId();
 
-    return registeredDevice ==
-        currentDevice;
-  }
-
-  // ============================================================
-  // CHECK IF THIS FACE IS ALREADY REGISTERED
-  // ============================================================
-
-  Future<bool> _isFaceAlreadyRegisteredByAnotherUser(
-    List<double> newEmbedding,
-  ) async {
-    final currentUser =
-        _auth.currentUser;
-
-    if (currentUser == null) {
-      throw Exception(
-        'User is not logged in.',
-      );
-    }
-
-    final snapshot =
-        await _firestore
-            .collection('face_data')
-            .get();
-
-    for (final doc
-        in snapshot.docs) {
-      // --------------------------------------------------------
-      // Skip current user's own face.
-      // --------------------------------------------------------
-
-      if (doc.id ==
-          currentUser.uid) {
-        continue;
-      }
-
-      final data =
-          doc.data();
-
-      final rawEmbedding =
-          data['embedding'];
-
-      if (rawEmbedding == null) {
-        continue;
-      }
-
-      try {
-        final existingEmbedding =
-            List<double>.from(
-          rawEmbedding,
-        );
-
-        // ------------------------------------------------------
-        // Same Face?
-        //
-        // Existing FaceMatchingService
-        // uses cosine similarity.
-        // ------------------------------------------------------
-
-        final similarity =
-            FaceMatchingService
-                .cosineSimilarity(
-          existingEmbedding,
-          newEmbedding,
-        );
-
-        // ------------------------------------------------------
-        // 0.70 is the existing face
-        // verification threshold.
-        // Use the same threshold for
-        // duplicate registration.
-        // ------------------------------------------------------
-
-        if (similarity >= 0.70) {
-          return true;
-        }
-      } catch (_) {
-        // Invalid/old embedding:
-        // ignore and continue checking.
-        continue;
-      }
-    }
-
-    return false;
+    return registeredDevice == currentDevice;
   }
 
   // ============================================================
@@ -397,13 +296,12 @@ class AuthService {
       );
     }
 
-    final faceRef =
-        _firestore
-            .collection('face_data')
-            .doc(user.uid);
+    final faceRef = _firestore
+        .collection('face_data')
+        .doc(user.uid);
 
     // ==========================================================
-    // 1. CHECK CURRENT USER
+    // 1. CHECK EXISTING FACE FOR CURRENT USER
     // ==========================================================
 
     final existingFace =
@@ -417,15 +315,16 @@ class AuthService {
           existingData?['deviceId']
               ?.toString();
 
+      // ========================================================
+      // EXISTING DEVICE ID
+      // ========================================================
+
       if (registeredDevice != null &&
           registeredDevice.isNotEmpty) {
         final currentDevice =
             await getDeviceId();
 
-        // ------------------------------------------------------
-        // SAME USER + SAME DEVICE
-        // ------------------------------------------------------
-
+        // Same user + same device.
         if (registeredDevice ==
             currentDevice) {
           throw Exception(
@@ -433,18 +332,15 @@ class AuthService {
           );
         }
 
-        // ------------------------------------------------------
-        // SAME USER + DIFFERENT DEVICE
-        // ------------------------------------------------------
-
+        // Same user + different device.
         throw Exception(
           'Face is already registered on another device.',
         );
       }
 
-      // --------------------------------------------------------
-      // OLD RECORD WITHOUT DEVICE ID
-      // --------------------------------------------------------
+      // ========================================================
+      // OLD FACE RECORD WITHOUT DEVICE ID
+      // ========================================================
 
       final currentDevice =
           await getDeviceId();
@@ -460,49 +356,29 @@ class AuthService {
           .doc(user.uid)
           .set(
         {
-          'faceRegistered':
-              true,
+          'faceRegistered': true,
         },
-        SetOptions(
-          merge: true,
-        ),
+        SetOptions(merge: true),
       );
 
       return;
     }
 
     // ==========================================================
-    // 2. GLOBAL DUPLICATE FACE CHECK
-    // ==========================================================
-
-    final duplicate =
-        await _isFaceAlreadyRegisteredByAnotherUser(
-      embedding,
-    );
-
-    if (duplicate) {
-      throw Exception(
-        'This face is already registered with another student account. '
-        'One person can register only one student account.',
-      );
-    }
-
-    // ==========================================================
-    // 3. DEVICE ID
+    // 2. GET CURRENT DEVICE
     // ==========================================================
 
     final currentDevice =
         await getDeviceId();
 
     // ==========================================================
-    // 4. SAVE NEW FACE
+    // 3. SAVE NEW FACE
     // ==========================================================
 
     await faceRef.set({
       'embedding': embedding,
 
-      'deviceId':
-          currentDevice,
+      'deviceId': currentDevice,
 
       'createdAt':
           FieldValue.serverTimestamp(),
@@ -512,7 +388,7 @@ class AuthService {
     });
 
     // ==========================================================
-    // 5. UPDATE USER
+    // 4. UPDATE USER
     // ==========================================================
 
     await _firestore
@@ -520,12 +396,9 @@ class AuthService {
         .doc(user.uid)
         .set(
       {
-        'faceRegistered':
-            true,
+        'faceRegistered': true,
       },
-      SetOptions(
-        merge: true,
-      ),
+      SetOptions(merge: true),
     );
   }
 
@@ -552,8 +425,7 @@ class AuthService {
       return null;
     }
 
-    final data =
-        doc.data();
+    final data = doc.data();
 
     if (data == null ||
         data['embedding'] == null) {
@@ -569,8 +441,7 @@ class AuthService {
   // TESTING HELPER FOR TEACHER
   // ============================================================
 
-  Future<void>
-      ensureTeacherForTesting() async {
+  Future<void> ensureTeacherForTesting() async {
     final user = _auth.currentUser;
 
     if (user == null) {
@@ -579,34 +450,28 @@ class AuthService {
       );
     }
 
-    final userRef =
-        _firestore
-            .collection('users')
-            .doc(user.uid);
+    final userRef = _firestore
+        .collection('users')
+        .doc(user.uid);
 
     final existingDoc =
         await userRef.get();
 
     if (existingDoc.exists &&
-        existingDoc.data()?['role'] !=
-            null) {
+        existingDoc.data()?['role'] != null) {
       return;
     }
 
     await userRef.set(
       {
         'email': user.email,
-        'name':
-            user.displayName ?? '',
-        'fullName':
-            user.displayName ?? '',
+        'name': user.displayName ?? '',
+        'fullName': user.displayName ?? '',
         'role': 'teacher',
         'createdAt':
             FieldValue.serverTimestamp(),
       },
-      SetOptions(
-        merge: true,
-      ),
+      SetOptions(merge: true),
     );
   }
 }
